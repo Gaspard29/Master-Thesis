@@ -1,60 +1,66 @@
 from pathlib import Path
+import time
 
 import joblib
 import numpy as np
 import pandas as pd
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.svm import SVC
-from sklearn.metrics import (accuracy_score, classification_report, confusion_matrix)
+from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score,
+    classification_report, confusion_matrix)
 
 from preprocessing import flatten
 
+# Config
 
-
-# Configuration
 DATASET_FOLDER = Path("../prepared_dataset")
 
 MODEL_FOLDER = Path("saved_models")
+RESULTS_FOLDER = Path("experiments/svm")
 
 MODEL_FOLDER.mkdir(exist_ok=True)
+RESULTS_FOLDER.mkdir(parents=True, exist_ok=True)
 
-TRAIN_RATIO = 0.60
-VALIDATION_RATIO = 0.20
-TEST_RATIO = 0.20
+RANDOM_STATE = 20
 
-RANDOM_STATE = 42
+NUMBER_OF_TEST_PARTICIPANTS = 2
+NUMBER_OF_CV_FOLDS = 5
 
+# SVM parameters
 
+KERNELS = ["linear", "poly", "rbf", "sigmoid"]
+C_VALUES = [0.1, 1, 10, 100]
+GAMMA_VALUES = [0.01, 0.1, 1]
+
+# Polynomial kernel parameter.
+POLY_DEGREE = 3
 
 # Features
 
 FEATURE_COLUMNS = [
+    "Time", "LeftPosX", "LeftPosY", "LeftPosZ", "LeftRotX", "LeftRotY", "LeftRotZ", "LeftRotW",
+    "RightPosX", "RightPosY", "RightPosZ", "RightRotX", "RightRotY", "RightRotZ", "RightRotW"
+    ]
 
-    "Time", "LeftPosX", "LeftPosY", "LeftPosZ", "LeftRotX",
-    "LeftRotY", "LeftRotZ", "LeftRotW", "RightPosX",
-    "RightPosY", "RightPosZ", "RightRotX", "RightRotY",
-    "RightRotZ","RightRotW"
-
-]
 
 POSITION_FEATURES = [
-
     "LeftPosX", "LeftPosY", "LeftPosZ",
     "RightPosX", "RightPosY", "RightPosZ"
-
 ]
 
-POSITION_INDICES = [
-    FEATURE_COLUMNS.index(feature)
-    for feature in POSITION_FEATURES
-]
+
+POSITION_INDICES = [FEATURE_COLUMNS.index(feature) for feature in POSITION_FEATURES]
+
+
+# Load dataset
 
 def load_dataset():
 
     X = []
     y = []
+    participants = []
 
     participant_folders = sorted(DATASET_FOLDER.glob("Participant_*"))
 
@@ -63,80 +69,94 @@ def load_dataset():
 
     for participant in participant_folders:
 
+        participant_name = participant.name
         gesture_folders = sorted(p for p in participant.iterdir() if p.is_dir())
 
         for gesture_folder in gesture_folders:
 
             gesture_name = gesture_folder.name
-
             csv_files = sorted(gesture_folder.glob("*.csv"))
 
             for csv_file in csv_files:
 
                 df = pd.read_csv(csv_file)
-
                 df = df[FEATURE_COLUMNS]
 
-                # Keep the 50x15 matrix
+                # Keep the original sequence
                 sample = df.to_numpy(dtype=float)
 
                 X.append(sample)
                 y.append(gesture_name)
-
+                participants.append(participant_name)
                 sample_count += 1
 
     X = np.array(X)
     y = np.array(y)
+    participants = np.array(participants)
 
     print("Dataset loaded.")
     print()
-
     print("Participants :", participant_count)
     print("Samples      :", sample_count)
     print("Classes      :", len(np.unique(y)))
     print("Sample shape :", X.shape[1:])
 
-    return X, y
+    return X, y, participants
 
 
+# Encode labels
 def encode_labels(y):
 
     encoder = LabelEncoder()
-
     y_encoded = encoder.fit_transform(y)
 
-    """ print()
-    print("Classes:")
+    print()
+    print("Classes")
+    print("--------------------")
 
     for i, gesture in enumerate(encoder.classes_):
-        print(f"{i:2d} -> {gesture}") """
+        print(f"{i:2d} -> {gesture}")
 
     return y_encoded, encoder
 
 
-def split_dataset(X, y):
+# Split participants
+def split_participants(X, y, participants):
 
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, train_size=TRAIN_RATIO, stratify=y,
-        random_state=RANDOM_STATE
-        )
+    unique_participants = np.unique(participants)
 
-    validation_fraction = VALIDATION_RATIO / (VALIDATION_RATIO + TEST_RATIO)
+    rng = np.random.default_rng(RANDOM_STATE)
 
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, train_size=validation_fraction,
-        stratify=y_temp, random_state=RANDOM_STATE
-        )
+    shuffled_participants = unique_participants.copy()
+    rng.shuffle(shuffled_participants)
 
-    """ print()
-    print("Dataset split")
+    test_participants = np.sort(shuffled_participants[:NUMBER_OF_TEST_PARTICIPANTS])
+    development_participants = np.sort(shuffled_participants[NUMBER_OF_TEST_PARTICIPANTS:])
+
+    test_mask = np.isin(participants, test_participants)
+    development_mask = np.isin(participants, development_participants)
+
+    print()
+    print("Participant split")
     print("--------------------")
-    print("Training   :", len(X_train))
-    print("Validation :", len(X_val))
-    print("Test       :", len(X_test)) """
 
-    return (X_train, X_val, X_test, y_train, y_val, y_test)
+    print("Test participants:")
+    for participant in test_participants:
+        print(f"  {participant}")
+
+    print()
+    print("Development participants:")
+    for participant in development_participants:
+        print(f"  {participant}")
+
+    return (X[development_mask], y[development_mask], X[test_mask], y[test_mask], test_participants)
 
 
-def normalize_positions(X_train, X_val, X_test):
+# Normalize positions
+def normalize_positions(X_train, X_other):
+
+    X_train = X_train.copy()
+    X_other = X_other.copy()
 
     scalers = {}
 
@@ -146,144 +166,339 @@ def normalize_positions(X_train, X_val, X_test):
 
         scaler.fit(X_train[:, :, feature_index].reshape(-1, 1))
 
-        X_train[:, :, feature_index] = scaler.transform(X_train[:, :, feature_index].reshape(-1, 1)
-        ).reshape(X_train.shape[0], X_train.shape[1])
+        X_train[:, :, feature_index] = (scaler.transform(X_train[:, :, feature_index].reshape(-1, 1))
+            .reshape(X_train.shape[0], X_train.shape[1]))
 
-        X_val[:, :, feature_index] = scaler.transform(X_val[:, :, feature_index].reshape(-1, 1)
-        ).reshape(X_val.shape[0], X_val.shape[1])
-
-        X_test[:, :, feature_index] = scaler.transform(X_test[:, :, feature_index].reshape(-1, 1)
-        ).reshape(X_test.shape[0], X_test.shape[1])
+        X_other[:, :, feature_index] = (scaler.transform(X_other[:, :, feature_index].reshape(-1, 1))
+            .reshape(X_other.shape[0], X_other.shape[1]))
 
         scalers[FEATURE_COLUMNS[feature_index]] = scaler
 
+    return X_train, X_other, scalers
+
+
+# Flatten dataset
+def flatten_dataset(X):
+
+    return np.array([flatten(pd.DataFrame(sample,columns=FEATURE_COLUMNS))
+        for sample in X])
+
+
+# Create SVM
+def create_svm(kernel, C, gamma):
+
+    if kernel == "poly":
+
+        return SVC(kernel=kernel, C=C, gamma=gamma, degree=POLY_DEGREE)
+
+    else:
+
+        return SVC(kernel=kernel, C=C, gamma=gamma)
+
+# Cross-validation
+def cross_validate_svm(X, y, kernel, C, gamma):
+
+    kfold = KFold(n_splits=NUMBER_OF_CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
+
+    accuracies = []
+    f1_scores = []
+    training_times = []
+
+    for train_indices, validation_indices in kfold.split(X):
+
+        X_train = X[train_indices]
+        X_val = X[validation_indices]
+
+        y_train = y[train_indices]
+        y_val = y[validation_indices]
+
+        # Normalize using training fold only
+        X_train, X_val, _ = normalize_positions(X_train, X_val)
+
+        # Flatten
+        X_train = flatten_dataset(X_train)
+        X_val = flatten_dataset(X_val)
+
+        # Create and train model
+        model = create_svm(kernel, C, gamma)
+
+        start_time = time.perf_counter()
+        model.fit(X_train, y_train)
+
+        training_time = (time.perf_counter() - start_time)
+
+        # Validation
+        predictions = model.predict(X_val)
+        accuracy = accuracy_score(y_val, predictions)
+        f1 = f1_score(y_val, predictions, average="macro", zero_division=0)
+
+        accuracies.append(accuracy)
+        f1_scores.append(f1)
+        training_times.append(training_time)
+
+    return {
+        "accuracy_mean": np.mean(accuracies),
+        "accuracy_std": np.std(accuracies),
+        "f1_mean": np.mean(f1_scores),
+        "f1_std": np.std(f1_scores),
+        "training_time_mean": np.mean(training_times)
+    }
+
+
+# Hyperparameter search
+def train_svm(X, y):
+
+    total_experiments = (len(KERNELS) * len(C_VALUES) * len(GAMMA_VALUES))
+
     print()
-    print("Position normalization complete.")
+    print("SVM hyperparameter search")
+    print("--------------------")
+    print(f"Experiments : {total_experiments}")
+    print(f"CV folds    : {NUMBER_OF_CV_FOLDS}")
+    print(f"Total fits  : "
+        f"{total_experiments * NUMBER_OF_CV_FOLDS}"
+    )
 
-    return (X_train, X_val, X_test, scalers)
+    results = []
 
+    experiment_number = 0
 
-def train_svm(X_train, y_train, X_val, y_val):
-
-    """ print()
-    print("Hyperparameter search")
-    print("--------------------") """
-
-    C_values = [0.1, 1, 10, 100]
-    gamma_values = [0.01, 0.1, 1]
-
-    best_accuracy = 0
-    best_model = None
+    best_f1 = -1
     best_parameters = None
 
-    for C in C_values:
+    for kernel in KERNELS:
 
-        for gamma in gamma_values:
+        for C in C_VALUES:
 
-            model = SVC(kernel="rbf", C=C, gamma=gamma)
-            model.fit(X_train,y_train)
-            predictions = model.predict(X_val)
-            accuracy = accuracy_score(y_val, predictions)
+            for gamma in GAMMA_VALUES:
 
-            """ print(
-                f"C={C:<5} "
-                f"gamma={gamma:<4} "
-                f"Validation={accuracy:.4f}"
-            ) """
+                experiment_number += 1
 
-            if accuracy > best_accuracy:
+                print(
+                    f"[{experiment_number}/{total_experiments}] "
+                    f"kernel={kernel}, "
+                    f"C={C}, "
+                    f"gamma={gamma}"
+                )
 
-                best_accuracy = accuracy
-                best_model = model
-                best_parameters = (C, gamma)
+                metrics = cross_validate_svm(X, y, kernel, C, gamma)
+
+                result = {
+                    "kernel": kernel,
+                    "C": C,
+                    "gamma": gamma,
+                    "accuracy_mean": metrics["accuracy_mean"],
+                    "accuracy_std": metrics["accuracy_std"],
+                    "f1_mean": metrics["f1_mean"],
+                    "f1_std": metrics["f1_std"],
+                    "training_time_mean": metrics["training_time_mean"]
+                }
+
+                results.append(result)
+
+                print(
+                    f"    Accuracy: "
+                    f"{metrics['accuracy_mean']:.4f} "
+                    f"+/- "
+                    f"{metrics['accuracy_std']:.4f}"
+                )
+
+                print(
+                    f"    F1:       "
+                    f"{metrics['f1_mean']:.4f} "
+                    f"+/- "
+                    f"{metrics['f1_std']:.4f}"
+                )
+
+                # Select based on macro F1
+                if metrics["f1_mean"] > best_f1:
+
+                    best_f1 = metrics["f1_mean"]
+                    best_parameters = {"kernel": kernel, "C": C, "gamma": gamma}
+
+    results_df = pd.DataFrame(results)
+
+    results_df = results_df.sort_values(by="f1_mean", ascending=False)
+
+    # Save all experiments
+    results_df.to_csv(RESULTS_FOLDER / "svm_results.csv", index=False)
 
     print()
-    print("Best model")
-    print(f"C = {best_parameters[0]}")
-    print(f"gamma = {best_parameters[1]}")
-    print(f"Validation accuracy = {best_accuracy:.4f}")
+    print("Best SVM")
+    print("--------------------")
+    print(
+        f"Kernel : "
+        f"{best_parameters['kernel']}"
+    )
+    print(
+        f"C      : "
+        f"{best_parameters['C']}"
+    )
+    print(
+        f"gamma  : "
+        f"{best_parameters['gamma']}"
+    )
+    print(
+        f"CV F1  : "
+        f"{best_f1:.4f}"
+    )
 
-    return best_model
+    return best_parameters, results_df
 
+# Train final model
+def train_final_model(X_train, y_train, parameters):
 
-def evaluate_model(model, X_test, y_test, label_encoder):
+    # Normalize using all development data
+    X_train, _, scalers = normalize_positions(X_train,X_train.copy())
+    X_train = flatten_dataset(X_train)
+
+    model = create_svm(parameters["kernel"], parameters["C"], parameters["gamma"])
 
     print()
-    print("Test evaluation")
+    print("Training final model")
     print("--------------------")
 
+    start_time = time.perf_counter()
+
+    model.fit(X_train, y_train)
+
+    training_time = (time.perf_counter() - start_time)
+
+    print(
+        f"Training time : "
+        f"{training_time:.2f} seconds"
+    )
+
+    return model, scalers
+
+
+# Evaluate final model
+def evaluate_model(model, scalers, X_test, y_test, label_encoder, test_participants):
+
+    # Apply scalers fitted on development data
+    X_test = X_test.copy()
+
+    for feature_index in POSITION_INDICES:
+
+        feature_name = FEATURE_COLUMNS[feature_index]
+        scaler = scalers[feature_name]
+
+        X_test[:, :, feature_index] = (scaler.transform(X_test[:, :, feature_index].reshape(-1, 1))
+            .reshape(X_test.shape[0],X_test.shape[1]))
+
+    X_test = flatten_dataset(X_test)
     predictions = model.predict(X_test)
 
     accuracy = accuracy_score(y_test, predictions)
+    f1 = f1_score(y_test, predictions, average="macro", zero_division=0)
+    precision = precision_score(y_test, predictions, average="macro", zero_division=0)
 
-    print(f"Accuracy : {accuracy:.4f}")
+    recall = recall_score(y_test, predictions, average="macro", zero_division=0)
 
+    print()
+    print("Final test evaluation")
+    print("--------------------")
+
+    print(
+        f"Test participants : "
+        f"{', '.join(test_participants)}"
+    )
+
+    print(
+        f"Accuracy          : "
+        f"{accuracy:.4f}"
+    )
+
+    print(
+        f"Precision (macro) : "
+        f"{precision:.4f}"
+    )
+
+    print(
+        f"Recall (macro)    : "
+        f"{recall:.4f}"
+    )
+
+    print(
+        f"F1 (macro)        : "
+        f"{f1:.4f}"
+    )
+
+
+    # Classification report
     print()
     print("Classification report")
     print("--------------------")
 
-    print(classification_report(y_test, predictions, target_names=label_encoder.classes_))
+    report = classification_report(y_test, predictions, target_names=label_encoder.classes_, zero_division=0)
 
-    print()
-    print("Confusion matrix")
-    print("--------------------")
+    print(report)
 
-    print(confusion_matrix(y_test,predictions))
+    # Save report
+    with open(RESULTS_FOLDER / "test_classification_report.txt", "w") as file:
 
-    return accuracy
+        file.write(report)
+
+    # Save final metrics
+    final_results = pd.DataFrame([{
+        "test_participants": ", ".join(test_participants),
+        "accuracy": accuracy,
+        "precision_macro": precision,
+        "recall_macro": recall,
+        "f1_macro": f1
+
+    }])
+
+    final_results.to_csv(RESULTS_FOLDER / "final_test_results.csv", index=False)
 
 
+# Save model
 def save_model(model, position_scalers, label_encoder):
 
-    MODEL_FOLDER.mkdir(exist_ok=True)
-
     joblib.dump(model, MODEL_FOLDER / "svm.joblib")
-
     joblib.dump(position_scalers, MODEL_FOLDER / "position_scalers.joblib")
-
     joblib.dump(label_encoder, MODEL_FOLDER / "label_encoder.joblib")
 
     print()
     print("Model saved.")
 
 
+# Main
 def main():
 
-    print("Loading dataset...\n")
+    print()
+    print("=" * 60)
+    print("SVM TRAINING")
+    print("=" * 60)
 
-    X, y = load_dataset()
-
+    X, y, participants = load_dataset()
     y, label_encoder = encode_labels(y)
 
-    (X_train, X_val, X_test, y_train, y_val, y_test) = split_dataset(X, y)
+    (X_development, y_development, X_test, y_test, test_participants) = split_participants(
+        X, y, participants)
 
-    (X_train, X_val, X_test, scalers) = normalize_positions(X_train, X_val, X_test)
+    # Hyperparameter search
+    best_parameters, results_df = train_svm(X_development, y_development)
 
-    X_train = np.array([flatten(pd.DataFrame(sample, columns=FEATURE_COLUMNS))
-        for sample in X_train
-        ])
+    # Train final model
+    model, scalers = train_final_model(X_development, y_development, best_parameters)
 
-    X_val = np.array([flatten(pd.DataFrame(sample, columns=FEATURE_COLUMNS))
-        for sample in X_val
-    ])
+    # Final test evaluation
+    evaluate_model(model, scalers, X_test, y_test, label_encoder, test_participants)
 
-    X_test = np.array([flatten(pd.DataFrame(sample, columns=FEATURE_COLUMNS))
-        for sample in X_test
-    ])
+    # Save
+    save_model(model, scalers, label_encoder)
 
     print()
-    print("Final shapes")
-    print("--------------------")
-    print(X_train.shape)
-    print(X_val.shape)
-    print(X_test.shape)
+    print("=" * 60)
+    print("TRAINING COMPLETE")
+    print("=" * 60)
 
-
-    model = train_svm(X_train, y_train, X_val, y_val)
-
-    #evaluate_model(model, X_test, y_test, label_encoder)
-
-    save_model(model, scalers, label_encoder)
+    print()
+    print(
+        f"Results saved in: "
+        f"{RESULTS_FOLDER}"
+    )
 
 if __name__ == "__main__":
     main()
