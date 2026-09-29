@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6c0524d101a187d42a6d9d01996e2e02
+timeCreated: 1443166932
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 46755
+  packageName: Tea and Coffee service
+  packageVersion: 1.0
+  assetPath: Assets/_Tea&coffe_service/Prefabs/saucer_small.prefab
+  uploadId: 82807

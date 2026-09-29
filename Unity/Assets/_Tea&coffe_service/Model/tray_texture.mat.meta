@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: e45620ea0281fb54db1377358a00c733
+timeCreated: 1443189012
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 46755
+  packageName: Tea and Coffee service
+  packageVersion: 1.0
+  assetPath: Assets/_Tea&coffe_service/Model/tray_texture.mat
+  uploadId: 82807

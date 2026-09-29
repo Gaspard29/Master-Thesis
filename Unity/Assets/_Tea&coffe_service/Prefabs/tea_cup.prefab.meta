@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 7e8206774189fca4aba2e0ae2af661e3
+timeCreated: 1443100330
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 46755
+  packageName: Tea and Coffee service
+  packageVersion: 1.0
+  assetPath: Assets/_Tea&coffe_service/Prefabs/tea_cup.prefab
+  uploadId: 82807

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f6d6b44570abec7499912dcfa7b9badf
+timeCreated: 1443100363
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 46755
+  packageName: Tea and Coffee service
+  packageVersion: 1.0
+  assetPath: Assets/_Tea&coffe_service/Prefabs/tray.prefab
+  uploadId: 82807

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: dd403f858f8154946abc488609629879
+timeCreated: 1443105467
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 46755
+  packageName: Tea and Coffee service
+  packageVersion: 1.0
+  assetPath: Assets/_Tea&coffe_service/Scene/materials/cloth.mat
+  uploadId: 82807

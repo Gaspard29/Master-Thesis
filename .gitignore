@@ -1,0 +1,69 @@
+# ============================================================
+# Python
+# ============================================================
+
+# Virtual environment
+Python/.venv/
+Python/venv/
+Python/env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# ============================================================
+# Machine learning generated files
+# ============================================================
+
+# Trained models
+# Uncomment if models are large or can be regenerated
+# Python/saved_models/
+
+# Temporary recording files
+Recording/
+
+# ============================================================
+# Unity
+# ============================================================
+
+# Unity generated folders
+Unity/Library/
+Unity/Temp/
+Unity/Obj/
+Unity/Build/
+Unity/Builds/
+Unity/Logs/
+Unity/UserSettings/
+
+# Visual Studio / Rider generated files
+Unity/.vs/
+Unity/.idea/
+
+# Generated solution/project files
+Unity/*.csproj
+Unity/*.sln
+Unity/*.suo
+Unity/*.user
+Unity/*.userprefs
+
+# Unity generated user-specific files
+Unity/Assets/Plugins/Editor/JetBrains*
+
+# ============================================================
+# OS
+# ============================================================
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store

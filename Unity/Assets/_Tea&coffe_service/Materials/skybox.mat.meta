@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d5b7d0fa207fb604eba0573010283b01
+timeCreated: 1443103673
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 46755
+  packageName: Tea and Coffee service
+  packageVersion: 1.0
+  assetPath: Assets/_Tea&coffe_service/Materials/skybox.mat
+  uploadId: 82807

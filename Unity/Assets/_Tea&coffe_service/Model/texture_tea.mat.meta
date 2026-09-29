@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a8d13049fb86c7744861aadb7b2247cb
+timeCreated: 1443188799
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 46755
+  packageName: Tea and Coffee service
+  packageVersion: 1.0
+  assetPath: Assets/_Tea&coffe_service/Model/texture_tea.mat
+  uploadId: 82807
